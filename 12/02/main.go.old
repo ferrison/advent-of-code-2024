@@ -1,0 +1,130 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"log"
+	"os"
+)
+
+type Vec struct {
+    x int
+    y int
+}
+
+type Fence struct {
+    x int
+    y int
+    direction Vec
+}
+
+var grid [][]string
+var w, h int
+var sum int
+
+var processed [][]bool
+var area int
+var perimiter []map[Fence]struct{}
+
+func main() {
+    file, err := os.Open("../input-12-mini")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer file.Close()
+
+    scanner := bufio.NewScanner(file)
+
+    grid = make([][]string, 0)
+    for scanner.Scan() {
+        line := scanner.Text()
+
+        grid = append(grid, make([]string, 0))
+        for _, charR := range line {
+            char := string(charR)
+            grid[len(grid)-1] = append(grid[len(grid)-1], char)
+        }
+    }
+
+    if err := scanner.Err(); err != nil {
+        log.Fatal(err)
+    }
+
+    h = len(grid)
+    w = len(grid[0])
+
+    processed = make([][]bool, h)
+    for y := range grid {
+        processed[y] = make([]bool, w)
+    }
+
+    sum = 0
+    for y, row := range grid {
+        for x, val := range row {
+            area = 0
+            perimiter = make([]map[Fence]struct{}, 0)
+            process(x, y, val)
+            if area != 0 {
+                fmt.Printf("Area: %d\n", area)
+                fmt.Printf("Sides: %d\n", len(perimiter))
+                for _, row := range perimiter {
+                    for fence := range row {
+                        fmt.Printf("(%d, %d, {%d, %d}), ", fence.x, fence.y, fence.direction.x, fence.direction.y)
+                    }
+                    fmt.Println()
+                    fmt.Println()
+                }
+                fmt.Println()
+            }
+            sum += area*len(perimiter)
+        }
+    }
+
+    fmt.Println(sum)
+}
+
+var DIRECTIONS = [4][2]int{{-1,0}, {0, 1}, {1, 0}, {0, -1}}
+
+func process(x int, y int, val string) {
+    if x < 0 || x >= w || y < 0 || y >= h {
+        return
+    }
+    if processed[y][x] {
+        return
+    }
+    if grid[y][x] != val {
+        return
+    }
+    processed[y][x] = true
+    
+    area++
+    dirs:
+    for _, d := range DIRECTIONS {
+        dy := d[0]
+        dx := d[1]
+        newX := x+dx
+        newY := y+dy
+        if !inbound(newX, newY) || val != grid[newY][newX] {
+            for _, row := range perimiter {
+                for _, dd := range DIRECTIONS {
+                    if _, ok := row[Fence{x+dd[1], y+dd[0], Vec{d[1], d[0]}}]; ok {
+                        row[Fence{x, y, Vec{d[1], d[0]}}] = struct{}{}
+                        continue dirs
+                    }
+                }
+            }
+            perimiter = append(perimiter, make(map[Fence]struct{}))
+            perimiter[len(perimiter)-1][Fence{x, y, Vec{d[1], d[0]}}] = struct{}{}
+            continue
+        }
+        process(newX, newY, val)
+    }
+}
+
+func inbound(x int, y int) bool {
+    if x < 0 || x >= w || y < 0 || y >= h {
+        return false
+    }
+    return true
+}
+

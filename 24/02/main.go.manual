@@ -1,0 +1,176 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"log"
+	"os"
+	"regexp"
+	"strconv"
+)
+
+const (
+    AND = "AND"
+    OR = "OR"
+    XOR = "XOR"
+)
+
+type Node struct {
+    op string
+    in1 string
+    in2 string
+    out string
+}
+
+var outputs = map[string]Node{}
+var vals = map[string]bool{}
+
+func main() {
+    file, err := os.Open("./input-24-swapped")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer file.Close()
+
+    scanner := bufio.NewScanner(file)
+
+    reInitVals := regexp.MustCompile(`([xy]\d\d): (\d)`)
+    for scanner.Scan() {
+        line := scanner.Text()
+
+        if line == "" {
+            break
+        }
+
+        matches := reInitVals.FindStringSubmatch(line)
+        name := matches[1]
+        valStr := matches[2]
+        var val bool
+        if valStr == "1" {
+            val = true
+        } else {
+            val = false
+        }
+
+        vals[name] = val
+    }
+
+    reGates := regexp.MustCompile(`(\w{3}) (AND|OR|XOR) (\w{3}) -> (\w{3})`)
+    for scanner.Scan() {
+        line := scanner.Text()
+
+        matches := reGates.FindStringSubmatch(line)
+        in1 := matches[1]
+        op := matches[2]
+        in2 := matches[3]
+        out := matches[4]
+
+        outputs[out] = Node{op, in1, in2, out}
+    }
+        
+    for i:=2; ;i++ {
+        out := fmt.Sprintf("z%02d", i)
+        if _, ok := outputs[out]; ok {
+            isCorrect(out)
+            fmt.Printf("%s is correct\n", out)
+        } else {
+            break
+        }
+    }
+
+    fmt.Println("All correct")
+}
+
+func isCorrect(out string) {
+    node := outputs[out]
+    outVal, _ := strconv.Atoi(out[1:])
+
+    if node.op != XOR {
+        wantedName := findWanted(XOR, outVal)
+        log.Fatalf("%s: operands must be XOR'ed. Maybe %s XOR ... -> %s", out, wantedName, out)
+    }
+
+    isIn1XOR := isOp(XOR, node.in1, outVal)
+    isIn2XOR := isOp(XOR, node.in2, outVal)
+    if !isIn1XOR && !isIn2XOR {
+        wantedName := findWanted(XOR, outVal)
+        log.Fatalf("%s: one of operands must XOR inputs. Maybe %s XOR ... -> %s", out, wantedName, out)
+    }
+
+    if isIn1XOR {
+        isCarryNode(node.in2, outVal)
+    } else {
+        isCarryNode(node.in1, outVal)
+    }
+}
+
+func isOp(op string, out string, val int) bool {
+    n := outputs[out]
+    valStr := fmt.Sprintf("%02d", val)
+    in1 := "x" + valStr
+    in2 := "y" + valStr
+
+    return n.op == op && (n.in1 == in1 && n.in2 == in2 || n.in1 == in2 && n.in2 == in1)
+}
+
+func isCarryNode(out string, carryFor int) {
+    if carryFor == 1 {
+        if !isOp(AND, out, 0) {
+            wantedName := findWanted(AND, 0)
+            log.Fatalf("%s: operands must be AND'ed. Maybe x00 AND y00 -> %s", out, wantedName)
+        }
+        return
+    }
+
+    node := outputs[out]
+
+    if node.op != OR {
+        wantedName := findWanted(AND, carryFor-1)
+        log.Fatalf("%s: operands must be OR'ed. Maybe %s OR ... -> %s", out, wantedName, out)
+    }
+
+    isIn1AND := isOp(AND, node.in1, carryFor-1)
+    isIn2AND := isOp(AND, node.in2, carryFor-1)
+
+    if !isIn1AND && !isIn2AND {
+        wantedName := findWanted(AND, carryFor-1)
+        log.Fatalf("%s: one of operands must AND inputs. Maybe %s AND ... -> %s", out, wantedName, out)
+    }
+    
+    if isIn1AND {
+        isSubcarryNode(node.in2, carryFor)
+    } else {
+        isSubcarryNode(node.in1, carryFor)
+    }
+}
+
+func isSubcarryNode(out string, carryFor int) {
+    node := outputs[out]
+
+    if node.op != AND {
+        wantedName := findWanted(XOR, carryFor-1)
+        log.Fatalf("%s: operands must be AND'ed. Maybe %s AND ... -> %s", out, wantedName, out)
+    }
+
+    isIn1XOR := isOp(XOR, node.in1, carryFor-1)
+    isIn2XOR := isOp(XOR, node.in2, carryFor-1)
+    if !isIn1XOR && !isIn2XOR {
+        wantedName := findWanted(XOR, carryFor-1)
+        log.Fatalf("%s: one of operands must XOR inputs. Maybe %s XOR ... -> %s", out, wantedName, out)
+    }
+
+    if isIn1XOR {
+        isCarryNode(node.in2, carryFor-1)
+    } else {
+        isCarryNode(node.in1, carryFor-1)
+    }
+}
+
+func findWanted(op string, val int) string {
+    for _, n := range outputs {
+        if isOp(op, n.out, val) {
+            return n.out
+        }
+    }
+    return ""
+}

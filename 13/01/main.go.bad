@@ -1,0 +1,120 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"log"
+	"os"
+	"regexp"
+	"strconv"
+)
+
+type Vec struct {
+    x int
+    y int
+}
+
+func (v Vec) Add(other Vec) Vec {
+    return Vec{
+        v.x+other.x,
+        v.y+other.y,
+    }
+}
+
+type Machine struct {
+    a Vec
+    b Vec
+    prize Vec
+}
+
+var machines []Machine
+
+func main() {
+    file, err := os.Open("../input-13-mini")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer file.Close()
+
+    scanner := bufio.NewScanner(file)
+
+    machines = make([]Machine, 0)
+    reBtn := regexp.MustCompile(`Button [AB]: X\+(\d*), Y\+(\d*)`)
+    rePrize := regexp.MustCompile(`Prize: X=(\d*), Y=(\d*)`)
+    for scanner.Scan() {
+        btnALine := scanner.Text()
+        scanner.Scan()
+        btnBLine := scanner.Text()
+        scanner.Scan()
+        prizeLine := scanner.Text()
+        scanner.Scan()
+
+        btnAStrs := reBtn.FindStringSubmatch(btnALine)
+        btnBStrs := reBtn.FindStringSubmatch(btnBLine)
+        prizeStrs := rePrize.FindStringSubmatch(prizeLine)
+
+        btnAX, _ := strconv.Atoi(btnAStrs[1])
+        btnAY, _ := strconv.Atoi(btnAStrs[2])
+        btnA := Vec{btnAX, btnAY}
+
+        btnBX, _ := strconv.Atoi(btnBStrs[1])
+        btnBY, _ := strconv.Atoi(btnBStrs[2])
+        btnB := Vec{btnBX, btnBY}
+
+        prizeX, _ := strconv.Atoi(prizeStrs[1])
+        prizeY, _ := strconv.Atoi(prizeStrs[2])
+        prize := Vec{prizeX, prizeY}
+
+        machines = append(machines, Machine{btnA, btnB, prize})
+    }
+
+    if err := scanner.Err(); err != nil {
+        log.Fatal(err)
+    }
+
+    sum := 0
+    for _, machine := range machines {
+        minCost = 1000
+        cost, win := process(machine, Vec{0, 0}, 0, 0, 0)
+        if win {
+            sum += cost
+            fmt.Println(cost)
+        }
+    }
+
+    fmt.Println(sum)
+}
+
+var minCost int
+
+func process(machine Machine, currPos Vec, aPressed int, bPressed int, currCost int) (int, bool) {
+    if currCost > minCost {
+        return currCost, false
+    }
+    if currPos.x > machine.prize.x || currPos.y > machine.prize.y {
+        fmt.Printf("%d, %d\n", aPressed, bPressed)
+        return currCost, false
+    }
+    if aPressed > 100 || bPressed > 100 {
+        fmt.Printf("%d, %d\n", aPressed, bPressed)
+        return currCost, false
+    }
+    if currPos == machine.prize {
+        minCost = min(minCost, currCost)
+        fmt.Println(minCost)
+        return currCost, true
+    }
+    pressB, winB := process(machine, currPos.Add(machine.b), aPressed, bPressed+1, currCost+1)
+    pressA, winA := process(machine, currPos.Add(machine.a), aPressed+1, bPressed, currCost+3)
+    if winA && winB {
+        cost := min(pressA, pressB)
+        return cost, true
+    }
+    if winA {
+        return pressA, true
+    }
+    if winB {
+        return pressB, true
+    }
+    return currCost, false
+}
